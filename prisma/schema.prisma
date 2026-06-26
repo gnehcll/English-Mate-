@@ -1,0 +1,135 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  password  String
+  name      String?
+  createdAt DateTime @default(now())
+
+  aiSettings      AISettings[]
+  articles        Article[]
+  checkResults    CheckResult[]
+  notes           Note[]
+  practices       Practice[]
+  practiceResults PracticeResult[]
+}
+
+model AISettings {
+  id        String   @id @default(uuid())
+  userId    String
+  provider  String   // openai, anthropic, deepseek, qwen
+  apiKey    String   // AES-256 encrypted
+  model     String   // gpt-4o, claude-opus-4-8, etc.
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@unique([userId, provider])
+}
+
+model Article {
+  id          String   @id @default(uuid())
+  userId      String
+  title       String?  // 题目（自由写作模式可选）
+  content     String   // 用户写的英文内容
+  type        String   // "writing" 或 "translation"
+  chineseText String?  // 中译英模式下的中文原文
+  createdAt   DateTime @default(now())
+
+  user         User          @relation(fields: [userId], references: [id])
+  checkResults CheckResult[]
+  notes        Note[]
+}
+
+model CheckResult {
+  id        String   @id @default(uuid())
+  articleId String
+  userId    String
+  createdAt DateTime @default(now())
+
+  article           Article           @relation(fields: [articleId], references: [id])
+  user              User              @relation(fields: [userId], references: [id])
+  grammarErrors     GrammarError[]
+  expressionOpts    ExpressionOpt[]
+  overallScore      OverallScore?
+}
+
+model GrammarError {
+  id              String  @id @default(uuid())
+  checkResultId   String
+  originalText    String  // 错误原文
+  correctedText   String  // 改正后
+  errorType       String  // 时态/介词/搭配/冠词/拼写/其他
+  explanation     String  // 解释说明
+  position        Int?    // 错误在原文中的字符位置
+  sentenceContext String? // 包含该错误的完整句子
+
+  checkResult CheckResult @relation(fields: [checkResultId], references: [id])
+}
+
+model ExpressionOpt {
+  id              String  @id @default(uuid())
+  checkResultId   String
+  originalText    String  // 原句
+  improvedText    String  // 更地道的说法
+  explanation     String  // 解释说明
+  position        Int?    // 在原文中的字符位置
+  sentenceContext String? // 包含该表达的完整句子
+
+  checkResult CheckResult @relation(fields: [checkResultId], references: [id])
+}
+
+model OverallScore {
+  id            String @id @default(uuid())
+  checkResultId String @unique
+  ieltsScore    Float  // 0-9，可带 0.5
+  summary       String // 整体评价
+  mainIssues    String // 主要问题（JSON 数组字符串）
+
+  checkResult CheckResult @relation(fields: [checkResultId], references: [id])
+}
+
+model Note {
+  id              String   @id @default(uuid())
+  userId          String
+  articleId       String?  // 来源文章（可为空）
+  content         String   // 错误或生疏的内容
+  translation     String?  // 中文释义
+  noteType        String   // word/phrase/sentence
+  sentenceContext String?  // 完整句子上下文
+  createdAt       DateTime @default(now())
+
+  user    User     @relation(fields: [userId], references: [id])
+  article Article? @relation(fields: [articleId], references: [id])
+}
+
+model Practice {
+  id             String   @id @default(uuid())
+  userId         String
+  chineseArticle String   // AI 生成的中文文章
+  sourceNoteIds  String   // 来源笔记 ID（JSON 数组字符串）
+  createdAt      DateTime @default(now())
+
+  user            User             @relation(fields: [userId], references: [id])
+  practiceResults PracticeResult[]
+}
+
+model PracticeResult {
+  id            String   @id @default(uuid())
+  practiceId    String
+  userId        String
+  translatedText String  // 用户翻译的英文
+  checkResultId String?  // 可选的 AI 检查结果
+  createdAt     DateTime @default(now())
+
+  practice Practice @relation(fields: [practiceId], references: [id])
+  user     User     @relation(fields: [userId], references: [id])
+}
