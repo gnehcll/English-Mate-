@@ -1,30 +1,18 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
-import { jwtVerify } from "jose";
-
-const AUTH_SECRET = new TextEncoder().encode(
-  process.env.AUTH_SECRET || "dev-secret-change-in-production-abc123"
-);
-
-async function getSession(req: NextRequest) {
-  // NextAuth v5 在生产环境使用 __Secure- 前缀
-  const token =
-    req.cookies.get("__Secure-authjs.session-token")?.value ||
-    req.cookies.get("authjs.session-token")?.value;
-
-  if (!token) return null;
-
-  try {
-    const verified = await jwtVerify(token, AUTH_SECRET);
-    return verified.payload;
-  } catch {
-    return null;
-  }
-}
+import { getToken } from "next-auth/jwt";
 
 export async function middleware(req: NextRequest) {
-  const session = await getSession(req);
-  const isLoggedIn = !!session;
+  const token = await getToken({
+    req,
+    secret: process.env.AUTH_SECRET,
+    cookieName:
+      process.env.NODE_ENV === "production"
+        ? "__Secure-authjs.session-token"
+        : "authjs.session-token",
+  });
+
+  const isLoggedIn = !!token;
   const { pathname } = req.nextUrl;
 
   const protectedPaths = [
